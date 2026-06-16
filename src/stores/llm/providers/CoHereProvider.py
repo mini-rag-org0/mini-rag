@@ -22,7 +22,7 @@ class CoHereProvider(LLMInterface):
         self.embedding_size = None
         self.embedding_model_id = None
 
-        self.client = cohere.Client(api_key = self.api_key)
+        self.client = cohere.AsyncClient(api_key = self.api_key)
 
         self.logger= logging.getLogger(__name__)
 
@@ -44,20 +44,22 @@ class CoHereProvider(LLMInterface):
                 
 
 
-    def generate_text(self, prompt: str,chat_history:list = [] , max_output_tokens: int=None,
+    async def generate_text(self, prompt: str,chat_history:list = None , max_output_tokens: int=None,
                       temperature: float = None ):
+        if chat_history is None:
+            chat_history = []
         if not self.client:
-            self.logger.error("OpenAI client was not set")
+            self.logger.error("CoHere client was not set")
             return None
         
         if not self.generation_model_id:
-             self.logger.error("Generation model for OpenAI was not set")
+             self.logger.error("Generation model for CoHere was not set")
              return None
         
         max_output_tokens = max_output_tokens if max_output_tokens else self.default_generation_max_output_tokens
         temperature = temperature if temperature else self.default_generation_temprature 
         
-        response = self.client.chat(
+        response = await self.client.chat(
             model =self.generation_model_id,
             chat_history = chat_history,
             message = self.process_text(prompt),
@@ -67,9 +69,13 @@ class CoHereProvider(LLMInterface):
 
 
         if not response or not response.text:
-            self.logger.error("Error while generating text whit CohHere")
-    
-    def embed_text(self, text: Union[str,List[str]], document_type: str = None):
+            self.logger.error("Error while generating text with CoHere")
+            return None
+
+        return response.text
+
+
+    async def embed_text(self, text: Union[str,List[str]], document_type: str = None):
         if not self.client:
             self.logger.error("CoHere client was not set")
             return None
@@ -85,7 +91,7 @@ class CoHereProvider(LLMInterface):
         if document_type == DocumentType.QUERY.value:
             input_type = CohereEnum.QUERY.value
 
-        response = self.client.embed(
+        response = await self.client.embed(
             model = self.embedding_model_id,
             texts = [self.process_text(t)for t in text ],
             input_type = input_type,

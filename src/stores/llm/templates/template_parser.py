@@ -25,7 +25,9 @@ class TemplateParser:
              self.language = self.default_language
 
 
-    def get(self, group: str, key:str, vars: dict={}):
+    def get(self, group: str, key:str, vars: dict=None):
+        if vars is None:
+            vars = {}
         if not group or not key :
             return None
         

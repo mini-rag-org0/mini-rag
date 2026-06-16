@@ -11,6 +11,7 @@ system_prompt =Template("\n".join([
     "Ignore the documents tha are not relavant to the user's query.",
     "You can applogize to the user if you are not able to generate a response.",
     "You have to generate reponse in the same language as the user's query.",
+    "$dialect_instruction",
     "Be polite and respectful to the user.",
     "Be precise and conies in your response. Avoid unnecessary information.",
 

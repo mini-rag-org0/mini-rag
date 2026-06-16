@@ -44,7 +44,7 @@ class NLPController(BaseController):
         # step2: manage items
         texts = [c.chunk_text for c in chunks ]
         metadata = [c.chunk_metadata for c in chunks]
-        vectors = self.embedding_client.embed_text(
+        vectors = await self.embedding_client.embed_text(
             text = texts,
             document_type = DocumentType.DOCUMENT.value
         )
@@ -79,7 +79,7 @@ class NLPController(BaseController):
         collection_name = self.create_collection_name(project_id= project.project_id)
 
         #step2: get text embedding vector
-        vectors = self.embedding_client.embed_text(
+        vectors = await self.embedding_client.embed_text(
             text = text, 
             document_type = DocumentType.QUERY.value
 
@@ -127,7 +127,7 @@ class NLPController(BaseController):
             })
             
             # 3. نطلب من الموديل إعادة صياغة السؤال ليصبح مستقلاً
-            rewritten_query = self.generation_client.generate_text(
+            rewritten_query = await self.generation_client.generate_text(
                 prompt=condense_prompt,
                 chat_history=[], # نرسل القالب كسؤال جديد بدون تاريخ إضافي
                 max_output_tokens=100 # لا نحتاج لإجابة طويلة، فقط السؤال
@@ -193,7 +193,7 @@ class NLPController(BaseController):
         full_prompt = "\n\n".join([ documents_prompts,  footer_prompt])
 
         # step4: Retrieve the Answer
-        answer = self.generation_client.generate_text(
+        answer = await self.generation_client.generate_text(
             prompt =full_prompt,
             chat_history = base_chat_history
         )

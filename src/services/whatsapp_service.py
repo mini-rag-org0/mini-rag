@@ -12,6 +12,10 @@ class WhatsAppService:
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json"
         }
+        self._client = httpx.AsyncClient(
+            headers=self.headers,
+            timeout=10.0,
+        )
 
     async def send_message(self, to_phone_number: str, text: str) -> bool:
         """
@@ -29,20 +33,21 @@ class WhatsAppService:
         }
 
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self.base_url,
-                    headers=self.headers,
-                    json=payload,
-                    timeout=10.0
-                )
+            response = await self._client.post(
+                self.base_url,
+                json=payload,
+            )
                 
-                if response.status_code in (200, 201):
-                    logger.info(f"Successfully sent WhatsApp message to {to_phone_number}")
-                    return True
-                else:
-                    logger.error(f"Failed to send WhatsApp message. Status: {response.status_code}, Response: {response.text}")
-                    return False
+            if response.status_code in (200, 201):
+                logger.info(f"Successfully sent WhatsApp message to {to_phone_number}")
+                return True
+            else:
+                logger.error(f"Failed to send WhatsApp message. Status: {response.status_code}, Response: {response.text}")
+                return False
         except Exception as e:
             logger.error(f"Exception occurred while sending WhatsApp message: {str(e)}")
             return False
+
+    async def close(self):
+        """Close the persistent HTTP client."""
+        await self._client.aclose()

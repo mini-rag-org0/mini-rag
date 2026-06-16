@@ -6,7 +6,7 @@ from models.ChunkModel import ChunkModel
 from models.ChatModel import ChatModel
 from models import ResponseSignal
 from controllers import NLPController
-from tqdm.auto import tqdm
+
 import logging
 
 
@@ -69,7 +69,7 @@ async def index_projcet(request : Request , project_id: int, push_request:PushRe
 
     # setup batching
     total_chunk_count = await chunk_model.get_total_chunks_count(project_id=project.project_id)
-    pbar = tqdm(total=total_chunk_count, desc = "vectot indexing", position=0)
+    logger.info(f"Starting vector indexing: {total_chunk_count} chunks for project {project.project_id}")
 
 
 
@@ -101,7 +101,7 @@ async def index_projcet(request : Request , project_id: int, push_request:PushRe
         )
 
 
-        pbar.update(len(page_chunks))
+        logger.info(f"Indexed {inserted_items_count + len(page_chunks)}/{total_chunk_count} chunks")
         inserted_items_count += len(page_chunks)
 
     return JSONResponse(

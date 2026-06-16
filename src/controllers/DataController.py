@@ -50,11 +50,20 @@ class DataController(BaseController):
 
     def get_clean_file_name(self,orig_file_name: str):
 
-        #remove ane special chr, except underscore and .
-        cleaned_file_name = re.sub(r'[^\w.]','',orig_file_name.strip())
+        # Extract only the basename to strip any directory components
+        basename = os.path.basename(orig_file_name.strip())
+
+        # Remove any special characters, except underscore and .
+        cleaned_file_name = re.sub(r'[^\w.]','', basename)
+
+        # Strip leading dots to prevent hidden files / traversal
+        cleaned_file_name = cleaned_file_name.lstrip('.')
 
         # replace spaces with underscore
         cleaned_file_name = cleaned_file_name.replace(" ","_")
+
+        if not cleaned_file_name:
+            cleaned_file_name = "unnamed_file"
 
         return cleaned_file_name
 

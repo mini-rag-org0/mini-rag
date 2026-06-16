@@ -7,6 +7,7 @@ from models.ChatModel import ChatModel
 from controllers import NLPController
 from langdetect import detect
 import logging
+import hmac
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -119,7 +120,7 @@ async def verify_webhook(request: Request):
     challenge = request.query_params.get("hub.challenge")
 
     if mode and token:
-        if mode == "subscribe" and token == verify_token:
+        if mode == "subscribe" and hmac.compare_digest(token, verify_token):
             logger.info("WEBHOOK_VERIFIED")
             return PlainTextResponse(content=challenge, status_code=200)
         else:

@@ -3,6 +3,7 @@ from ..VectorDBEnums import (DistnaceMethodEnum,PgVectorDistnaceMethodEnum
                              ,PgVectorTableSchemeEnums,PgVectorTableSchemeEnums,PgVectorIndexTypeEnum)
 from typing import List
 import logging
+import re
 from models.db_schemes import RetrieveDocument
 from sqlalchemy.sql import text as sql_text
 import json
@@ -26,6 +27,12 @@ class PGVectorProvider(VectorDBInterface):
 
         self.logger = logging.getLogger("uvicorn")
         self.default_index_name = lambda collection_name: f"{collection_name}_vector_idx"
+
+    def _validate_identifier(self, name: str) -> str:
+        """Validate that a name is a safe SQL identifier to prevent injection."""
+        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
+            raise ValueError(f"Invalid SQL identifier: {name}")
+        return name
 
     async def connect(self):
         async with self.db_client() as session:
@@ -77,6 +84,7 @@ class PGVectorProvider(VectorDBInterface):
                     WHERE tablename = :collection_name
                 ''')
 
+                self._validate_identifier(collection_name)
                 count_sql = sql_text(f'SELECT COUNT(*) FROM {collection_name}')
 
                 table_info = await session.execute(table_info_sql,{"collection_name":collection_name})
@@ -99,6 +107,7 @@ class PGVectorProvider(VectorDBInterface):
                 }
             
     async  def delete_collection(self, collection_name:str):
+        self._validate_identifier(collection_name)
         async with self.db_client() as session:
             async with session.begin():
                 self.logger.info(f"Deleting collection: {collection_name}")
@@ -115,6 +124,7 @@ class PGVectorProvider(VectorDBInterface):
         if do_reset:
             _ =await self.delete_collection(collection_name=collection_name)
 
+        self._validate_identifier(collection_name)
         is_collection_existed = await self.is_collection_existed(collection_name=collection_name)
         if not is_collection_existed:
             self.logger.info(f"Creating collection: {collection_name}")
@@ -157,6 +167,7 @@ class PGVectorProvider(VectorDBInterface):
 
     async def create_vector_index(self, collection_name: str,
                                    index_type: str = PgVectorIndexTypeEnum.HNSW.value):
+        self._validate_identifier(collection_name)
         is_index_existed = await self.is_index_existed(collection_name=collection_name)
         if is_index_existed:
             return False
@@ -185,7 +196,7 @@ class PGVectorProvider(VectorDBInterface):
 
     async def reset_vector_index(self, collection_name: str, 
                                  index_type: str = PgVectorIndexTypeEnum.HNSW.value):
-        
+        self._validate_identifier(collection_name)
         index_name = self.default_index_name(collection_name)
         async with self.db_client() as session:
                 async with session.begin():
@@ -282,30 +293,30 @@ class PGVectorProvider(VectorDBInterface):
 
     async def search_by_vector(self, collection_name:str, vector:list, limit: int) -> List[RetrieveDocument] :
 
-        is_collection_existed = await self.is_collection_existed(collection_name=collection_name)
-        if not is_collection_existed:
-            self.logger.error(f"Can not search new records to non-existed collection: {collection_name}")
-            return False
-        
+        self._validate_identifier(collection_name)
         vector = "[" + ",".join([ str(v) for v in vector ]) + "]"
 
         async with self.db_client() as session:
                 async with session.begin():
-                    search_sql = sql_text(f'SELECT {PgVectorTableSchemeEnums.TEXT.value} as text, 1 - ({PgVectorTableSchemeEnums.VECTOR.value} <=> :vector) as score'
-                                      f' FROM {collection_name}'
-                                      ' ORDER BY score DESC '
-                                      f'LIMIT {limit}'
-                                      )
-                    
-                    result = await session.execute(search_sql,{"vector":vector})
-
-                    records = result.fetchall()
-
-                    return[
-                        RetrieveDocument(
-                            text= record.text,
-                            score = record.score
-                        )
+                    try:
+                        search_sql = sql_text(f'SELECT {PgVectorTableSchemeEnums.TEXT.value} as text, 1 - ({PgVectorTableSchemeEnums.VECTOR.value} <=> :vector) as score'
+                                          f' FROM {collection_name}'
+                                          ' ORDER BY score DESC '
+                                          'LIMIT :limit'
+                                          )
                         
-                        for record in records
-                    ]
+                        result = await session.execute(search_sql,{"vector":vector, "limit":limit})
+
+                        records = result.fetchall()
+
+                        return[
+                            RetrieveDocument(
+                                text= record.text,
+                                score = record.score
+                            )
+                            
+                            for record in records
+                        ]
+                    except Exception as e:
+                        self.logger.error(f"Error searching collection {collection_name}: {e}")
+                        return []

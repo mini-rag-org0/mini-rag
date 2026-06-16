@@ -19,7 +19,7 @@ class PgVectorTableSchemeEnums(Enum):
 
 class PgVectorDistnaceMethodEnum(Enum):
     COSINE = "vector_cosine_ops"
-    DOT = "vector_12_ops"
+    DOT = "vector_ip_ops"
 
 class PgVectorIndexTypeEnum(Enum):
     HNSW = "hnsw"

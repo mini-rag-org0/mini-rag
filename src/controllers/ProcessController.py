@@ -1,6 +1,7 @@
 from.BaseController import BaseController
 from .ProjectController import ProjectController
 import os
+import asyncio
 from langchain_community.document_loaders import TextLoader
 from langchain_community.document_loaders import PyMuPDFLoader
 from models import ProcessingEnum
@@ -46,12 +47,12 @@ class ProcessController(BaseController):
         return None
     
 
-    def get_file_content(self, file_id: str):
+    async def get_file_content(self, file_id: str):
 
         loader = self.get_file_loader(file_id=file_id)
         if loader:
 
-            return loader.load()
+            return await asyncio.to_thread(loader.load)
         
         return None
     
@@ -70,45 +71,52 @@ class ProcessController(BaseController):
             for rec in file_content
         ]
 
-        #chunks = text_splitter.create_documents(
-         #   file_content_texts,
-          #  metadatas=file_content_metadata
-        #)
-
         chunks = self.process_simpler_splitter(
             texts=file_content_texts,
             metadatas=file_content_metadata,
             chunk_size=chunk_size,
+            overlap_size=overlap_size,
         )
         return chunks
     
-    def process_simpler_splitter(self, texts: List[str], metadatas: List[dict], chunk_size: int, splitter_tag :str = "\n"):
+    def process_simpler_splitter(self, texts: List[str], metadatas: List[dict],
+                                 chunk_size: int, overlap_size: int = 0,
+                                 splitter_tag: str = "\n"):
 
         full_text = " ".join(texts)
+        combined_metadata = metadatas[0] if metadatas else {}
 
         # split by splitter_tag
         lines = [ doc.strip() for doc in full_text.split(splitter_tag) if len(doc.strip()) > 1 ]
 
         chunks = []
-        current_chunk = ""
+        current_chunk_lines = []
+        current_len = 0
 
         for line in lines:
-            current_chunk += line + splitter_tag
-            if len(current_chunk) >= chunk_size:
+            current_chunk_lines.append(line)
+            current_len += len(line) + len(splitter_tag)
+            if current_len >= chunk_size:
                 chunks.append(Document(
-                    page_content=current_chunk.strip(),
-                    metadata={}
+                    page_content=splitter_tag.join(current_chunk_lines).strip(),
+                    metadata=combined_metadata.copy()
                 ))
 
-                current_chunk = ""
+                # Implement overlap: keep trailing lines up to overlap_size characters
+                overlap_lines = []
+                overlap_len = 0
+                for prev_line in reversed(current_chunk_lines):
+                    if overlap_len + len(prev_line) > overlap_size:
+                        break
+                    overlap_lines.insert(0, prev_line)
+                    overlap_len += len(prev_line)
+                current_chunk_lines = overlap_lines
+                current_len = overlap_len
 
-        if len(current_chunk) > 0:
+        if len(current_chunk_lines) > 0:
             chunks.append(Document(
-                page_content=current_chunk.strip(),
-                metadata={}
+                page_content=splitter_tag.join(current_chunk_lines).strip(),
+                metadata=combined_metadata.copy()
             ))
 
         return chunks
-
-
-
